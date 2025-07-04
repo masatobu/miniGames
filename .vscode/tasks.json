@@ -9,7 +9,7 @@
             "command": "C:\\Program Files\\Git\\bin\\bash.exe",
             "args": [
                 "-c",
-                "echo input_path\\> && read dir_path && cd dist/$dir_path && pyxel package ../../src/$dir_path ../../src/$dir_path/main.py"
+                "echo input_path\\> && read dir_path && echo version\\> && read version && cd dist/$dir_path && pyxel package ../../src/$dir_path ../../src/$dir_path/main.py && mv ${dir_path}.pyxapp ${dir_path}_v${version}.pyxapp"
             ],
             "problemMatcher": [],
             "group": {
