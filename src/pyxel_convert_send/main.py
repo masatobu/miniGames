@@ -52,6 +52,7 @@ class Color(Enum):
     NODE_GRAY = 13
     PLAYER = 6
     ENEMY = 14
+    BLACK = 0
 
 
 class Direct(Enum):
@@ -63,7 +64,7 @@ class Direct(Enum):
 
 class PyxelView(IView):
     TILE_MAP_WIDTH = 8 * (8 * 2)
-    TILE_MAP_HEIGHT = 8 * (8 * 2 - 2)
+    TILE_MAP_HEIGHT = 8 * (8 * 2 - 1)
 
     def __init__(self):
         import pyxel  # pylint: disable=W0621, C0415
@@ -233,7 +234,7 @@ class PyxelInput(IInput):
 
 
 class GameObject(ABC):
-    MONITOR_HEIGHT = PyxelView.TILE_MAP_HEIGHT + 8
+    MONITOR_HEIGHT = PyxelView.TILE_MAP_HEIGHT
     MONITOR_WIDTH = PyxelView.TILE_MAP_WIDTH
 
     def __init__(self):
@@ -343,30 +344,18 @@ class UnitPlayer(Unit):
 class UnitEnemy(Unit):
     SHOT_INTERVAL = 20  # over tile_width / bullet_speed
     MAX_HP = 3
-    COLOR_LIST = [
-        Color.NODE_RED,
-        Color.NODE_BLUE,
-        Color.NODE_GREEN,
-        Color.NODE_YELLOW,
-        Color.NODE_ORANGE,
-    ]
 
-    def __init__(self, tile_x, tile_y, color_num=2, split_num=2):
+    def __init__(self, tile_x, tile_y, color=Color.NODE_RED):
         super().__init__(tile_x, tile_y, Node.UNIT_ENEMY)
         self.max_interval = self.SHOT_INTERVAL
         self.direct = Direct.LEFT
         self.bullet_cls = BulletEnemy
         self.hp = self.MAX_HP
-        self.color_num = color_num
-        self.split_num = split_num
-        self.color = self.get_color()
+        self.color = color
 
     def hit(self, bullet):
         if self.color == bullet.color:
             super().hit(bullet)
-
-    def get_color(self):
-        return self.COLOR_LIST[(self.tile_y // self.split_num) % self.color_num]
 
 
 class Curve(FieldNode):
@@ -545,17 +534,18 @@ class Action(Enum):
     SPLIT = (PyxelFieldView.FIELD_TILE_WIDTH + 1, 6)
     MERGE = (PyxelFieldView.FIELD_TILE_WIDTH + 1, 8)
     DELETE = (PyxelFieldView.FIELD_TILE_WIDTH + 1, 11)
+    NEXT = (PyxelFieldView.FIELD_TILE_WIDTH + 1, 13)
 
 
 class Field(FieldObject):
-    def __init__(self, enemy_split_num, enemy_color_num):
+    def __init__(self, enemy_split_num, enemy_color_list):
         super().__init__()
         self.enemy_split_num = enemy_split_num
-        self.enemy_color_num = enemy_color_num
+        self.enemy_color_list = enemy_color_list
+        self.enemy_y_color_map = {}
         unit_player = UnitPlayer(0, self._get_random_new_player_y_pos())
-        unit_enemy = UnitEnemy(
-            11, self._get_random_new_enemy_y_pos(set())[0], self.enemy_color_num
-        )
+        y_list = self._get_random_new_enemy_y_pos(set())
+        unit_enemy = UnitEnemy(11, *self._get_enemy_param(y_list[0:1])[0])
         self.unit_list = [unit_player, unit_enemy]
         self.bullet_map = {}
         self.node_map = {unit.get_tile_pos(): unit for unit in self.unit_list}
@@ -568,13 +558,31 @@ class Field(FieldObject):
         self._update_unit()
         self._shot()
 
+    def _get_enemy_param(self, y_list):
+        ret = []
+        for y in y_list:
+            if y not in self.enemy_y_color_map:
+                counter = len(self.enemy_y_color_map)
+                if counter >= len(self.enemy_color_list):
+                    continue
+                self.enemy_y_color_map[y] = self.enemy_color_list[counter]
+            ret.append((y, self.enemy_y_color_map[y]))
+        return ret
+
     def _update_unit(self):
         bef_enemies_y_set = self._get_enemies_y_set()
         self.unit_list = [unit for unit in self.unit_list if not unit.is_death()]
         if len(bef_enemies_y_set) > len(self._get_enemies_y_set()):
+            if len(self.enemy_y_color_map) == len(self.enemy_color_list):
+                bef_enemies_y_set |= (
+                    set(y for y in range(PyxelFieldView.FIELD_TILE_HEIGHT))
+                    - self.enemy_y_color_map.keys()
+                )
             append_unit_list = [
-                UnitEnemy(11, y, self.enemy_color_num)
-                for y in self._get_random_new_enemy_y_pos(bef_enemies_y_set)
+                UnitEnemy(11, y, color)
+                for y, color in self._get_enemy_param(
+                    self._get_random_new_enemy_y_pos(bef_enemies_y_set)
+                )
             ]
             self.unit_list.extend(append_unit_list)
             for unit in append_unit_list:
@@ -738,6 +746,7 @@ class Cursor(GameObject):
             Action.SPLIT,
             Action.MERGE,
             Action.DELETE,
+            Action.NEXT,
         ]
     }
 
@@ -747,6 +756,7 @@ class Cursor(GameObject):
         self.click_pos = (-1, -1)
         self.select_pos = None
         self.select_action = None
+        self.flg_stage_clear = False
 
     def update(self):
         self.select_pos = None
@@ -755,6 +765,8 @@ class Cursor(GameObject):
             if x is not None and y is not None:
                 for k, v in self.AVAIL_POS_MAP.items():
                     if v[0] <= x < v[0] + v[2] and v[1] <= y < v[1] + v[3]:
+                        if k == Action.NEXT and not self.flg_stage_clear:
+                            break
                         next_click_pos = (
                             (x - PyxelFieldView.FIELD_OFFSET_X) // 8,
                             (y - PyxelFieldView.FIELD_OFFSET_Y) // 8,
@@ -799,6 +811,10 @@ class Cursor(GameObject):
                     False,
                 )
             )
+        if not self.flg_stage_clear:
+            draws.append(
+                (*self.AVAIL_POS_MAP[Action.NEXT][0:2], 8, 8, Color.BLACK, True)
+            )
         if len(draws) > 0:
             self.view.set_clip(None)
             for draw in draws:
@@ -816,34 +832,61 @@ class Cursor(GameObject):
         self.select_pos = None
         self.select_action = None
 
+    def set_stage_clear(self, flg_stage_clear):
+        self.flg_stage_clear = flg_stage_clear
+
 
 class GameCore(GameObject):
     GAMA_PARAMS_LIST = [
-        (8, 5),
-        (2, 2),
-        (6, 4),
+        (2, [Color.NODE_RED, Color.NODE_ORANGE]),
+        (2, [Color.NODE_BLUE, Color.NODE_RED, Color.NODE_GREEN] * 2),
+        (4, [Color.NODE_RED, Color.NODE_GREEN, Color.NODE_YELLOW]),
     ]
+    WAIT_ENABLE_NEXT_TERN = 180
 
-    def __init__(self, param_num=0):
+    def __init__(self, param_num=None):
         super().__init__()
-        self.field = Field(*self.GAMA_PARAMS_LIST[param_num])
-        self.cursor = Cursor()
+        self.field = None
+        self.cursor = None
+        self.stage_clear_tern = 0
+        self._game_reset(set_param=param_num)
 
     def update(self):
         self._action()
         self.field.update()
+        self._update_stage_clear_wait_tern()
+
+    def _update_stage_clear_wait_tern(self):
+        if self.field.get_bullet_count()[1] == 0:
+            self.stage_clear_tern += 1
+        else:
+            self.stage_clear_tern = 0
+        self.cursor.set_stage_clear(self.stage_clear_tern > self.WAIT_ENABLE_NEXT_TERN)
 
     def _action(self):
         bef_act = self.cursor.get_action()
         self.cursor.update()
         click_pos = self.cursor.get_select_pos()
-        if self.cursor.get_action() == Action.FIELD and click_pos is not None:
+        aft_act = self.cursor.get_action()
+        if aft_act == Action.NEXT:
+            self._game_reset()
+        elif aft_act == Action.FIELD and click_pos is not None:
             if bef_act is None or bef_act == Action.FIELD:
                 self.field.mainte(*click_pos)
             elif bef_act == Action.DELETE:
                 self.field.delete(*click_pos)
             else:
                 self.field.build(bef_act, *click_pos)
+
+    def _game_reset(self, set_param=None):
+        param = (
+            set_param
+            if set_param is not None
+            else random.randint(0, len(self.GAMA_PARAMS_LIST) - 1)
+        )
+        self.field = Field(*self.GAMA_PARAMS_LIST[param])
+        self.cursor = Cursor()
+        self.stage_clear_tern = 0
 
     def draw(self):
         self.view.clear()
