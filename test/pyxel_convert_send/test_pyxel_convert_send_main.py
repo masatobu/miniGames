@@ -1,8 +1,10 @@
 import os
+import random
 import sys
 import unittest
 from unittest.mock import patch
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src/")))
 from pyxel_convert_send.main import (  # pylint: disable=C0413
     IView,
     GameCore,
@@ -270,7 +272,8 @@ class TestUnit(TestFieldParent):
                 case_name=case_name, expected_param=expected_param, cls=cls
             ):
                 self.setUp()
-                unit = cls(7, 7)
+                param = (7, 7) if cls == UnitPlayer else (7, 7, Color.BLUE)
+                unit = cls(*param)
                 unit.draw()
                 expected = [("draw_node", 7, 7, *expected_param, Color.NODE_BLUE)]
                 self.assertEqual(
@@ -315,7 +318,8 @@ class TestUnit(TestFieldParent):
             with self.subTest(
                 case_name=case_name, expected_is_death=eid, cls=cls, bullet_class=bc
             ):
-                unit = cls(7, 7)
+                param = (7, 7) if cls == UnitPlayer else (7, 7, Color.BLUE)
+                unit = cls(*param)
                 bullet = bc(7, 7, Direct.RIGHT)
                 for _ in range(unit.MAX_HP):
                     self.assertEqual(False, unit.is_death())
@@ -325,24 +329,8 @@ class TestUnit(TestFieldParent):
     def test_set_color(self):
         test_cases = [
             ("player", Color.NODE_BLUE, UnitPlayer, (7, 6)),
-            ("player 2", Color.NODE_BLUE, UnitPlayer, (7, 10)),
-            ("player 3", Color.NODE_BLUE, UnitPlayer, (7, 4)),
-            ("[2color] enemy", Color.NODE_RED, UnitEnemy, (7, 4, 2, 2)),
-            ("[2color] enemy 2", Color.NODE_BLUE, UnitEnemy, (7, 6, 2, 2)),
-            ("[2color] enemy 3", Color.NODE_RED, UnitEnemy, (7, 8, 2, 2)),
-            ("[2color] enemy 4", Color.NODE_BLUE, UnitEnemy, (7, 10, 2, 2)),
-            ("[3color] enemy", Color.NODE_GREEN, UnitEnemy, (7, 4, 3, 2)),
-            ("[3color] enemy 2", Color.NODE_RED, UnitEnemy, (7, 6, 3, 2)),
-            ("[3color] enemy 3", Color.NODE_BLUE, UnitEnemy, (7, 8, 3, 2)),
-            ("[3color] enemy 4", Color.NODE_GREEN, UnitEnemy, (7, 10, 3, 2)),
-            ("[4color] enemy", Color.NODE_GREEN, UnitEnemy, (7, 4, 4, 2)),
-            ("[4color] enemy 2", Color.NODE_YELLOW, UnitEnemy, (7, 6, 4, 2)),
-            ("[4color] enemy 3", Color.NODE_RED, UnitEnemy, (7, 8, 4, 2)),
-            ("[4color] enemy 4", Color.NODE_BLUE, UnitEnemy, (7, 10, 4, 2)),
-            ("[5color] enemy", Color.NODE_GREEN, UnitEnemy, (7, 4, 5, 2)),
-            ("[5color] enemy 2", Color.NODE_YELLOW, UnitEnemy, (7, 6, 5, 2)),
-            ("[5color] enemy 3", Color.NODE_ORANGE, UnitEnemy, (7, 8, 5, 2)),
-            ("[5color] enemy 4", Color.NODE_RED, UnitEnemy, (7, 10, 5, 2)),
+            ("enemy red", Color.NODE_RED, UnitEnemy, (7, 4, Color.NODE_RED)),
+            ("enemy blue", Color.NODE_BLUE, UnitEnemy, (7, 6, Color.NODE_BLUE)),
         ]
         for case_name, expected, cls, cls_params in test_cases:
             with self.subTest(
@@ -815,7 +803,7 @@ class TestMerge(TestFieldParent):
 class TestField(TestFieldParent):
     def setUp(self):
         super().setUp()
-        self.field = field = Field(2, 2)
+        self.field = field = Field(2, [Color.NODE_BLUE] * 6)
         unit = UnitPlayer(0, 6)
         field.unit_list = [unit]
         field.node_map = {(0, 6): unit}
@@ -825,7 +813,7 @@ class TestField(TestFieldParent):
     def test_initial_unit(self, mock_func_enemy, mock_func_player):
         mock_func_player.return_value = 3
         mock_func_enemy.return_value = [2, 1]
-        self.field = Field(2, 2)
+        self.field = Field(2, [Color.NODE_BLUE])
         self.assertEqual(3, self.field.unit_list[0].tile_y)
         self.assertEqual(2, self.field.unit_list[1].tile_y)
 
@@ -1206,9 +1194,11 @@ class TestField(TestFieldParent):
                 ret_pos_list=ret_pos_list,
                 first_enemies_y=first_enemies_y,
             ):
-                self.setUp()
                 mock_random_choices.return_value = ret_pos_list
-                enemy_list = [UnitEnemy(11, y) for y in first_enemies_y]
+                self.setUp()
+                enemy_list = [
+                    UnitEnemy(11, y, Color.NODE_BLUE) for y in first_enemies_y
+                ]
                 self.field.unit_list.extend(enemy_list)
                 for enemy in enemy_list:
                     self.field.node_map[(11, enemy.tile_y)] = enemy
@@ -1236,7 +1226,7 @@ class TestField(TestFieldParent):
     @patch.object(Field, "_get_random_new_enemy_y_pos")
     def test_unit_kill_exception(self, mock_random_choices):
         mock_random_choices.return_value = [1, 2]
-        enemy_list = [UnitEnemy(11, 6)]
+        enemy_list = [UnitEnemy(11, 6, Color.NODE_BLUE)]
         self.field.unit_list.extend(enemy_list)
         for enemy in enemy_list:
             self.field.node_map[(11, enemy.tile_y)] = enemy
@@ -1250,6 +1240,69 @@ class TestField(TestFieldParent):
         with self.assertRaises(KeyError):
             while self._get_player_bullet(self.field.bullet_map) > 0:
                 self.field.update()
+
+    @patch.object(Field, "_get_random_new_enemy_y_pos")
+    def test_enemy_generate(self, mock_random_choices):
+        test_cases = [
+            (
+                "basic",
+                [[(4, Color.NODE_RED), (6, Color.NODE_GREEN)]],
+                [2, 4, 6],
+                [Color.NODE_BLUE, Color.NODE_RED, Color.NODE_GREEN],
+                1,
+            ),
+            (
+                "color list less than candidate",
+                [[(4, Color.NODE_RED)]],
+                [2, 4, 6],
+                [Color.NODE_BLUE, Color.NODE_RED],
+                1,
+            ),
+            ("no candidate", [[]], [2, 4, 6], [Color.NODE_BLUE], 1),
+            (
+                "second times",
+                [
+                    [(4, Color.NODE_RED), (6, Color.NODE_GREEN)],
+                    [(6, Color.NODE_GREEN), (2, Color.NODE_BLUE)],
+                ],
+                [2, 4, 6],
+                [Color.NODE_BLUE, Color.NODE_RED, Color.NODE_GREEN],
+                2,
+            ),
+        ]
+        for case_name, expected, ret_pos_list, color, times in test_cases:
+            with self.subTest(
+                case_name=case_name,
+                expected=expected,
+                ret_pos_list=ret_pos_list,
+                color=color,
+                times=times,
+            ):
+                mock_random_choices.side_effect = [
+                    ret_pos_list[0:2],
+                    ret_pos_list[0:2],
+                    ret_pos_list[1:],
+                    ret_pos_list[0:1],
+                ]
+                self.setUp()
+                self.field = Field(2, color)
+                enemy = self.field.unit_list[1]
+                self.assertEqual(color[0], enemy.color)
+                self.assertEqual(ret_pos_list[0], enemy.tile_y)
+                for i in range(times):
+                    enemy = self.field.unit_list[1]
+                    enemy.hp = 0
+                    del self.field.node_map[enemy.get_tile_pos()]
+                    self.field.update()
+                    self.assertEqual(
+                        expected[i],
+                        [
+                            (unit.tile_y, unit.color)
+                            for unit in self.field.unit_list
+                            if isinstance(unit, UnitEnemy)
+                        ],
+                    )
+                self.tearDown()
 
     def _bullet_hit_node(
         self, unit_cls, unit_status, bullet_list, action, mainte_times
@@ -1362,7 +1415,7 @@ class TestField(TestFieldParent):
                 [],
                 [],
                 UnitEnemy,
-                (0, 2, Direct.RIGHT, Color.NODE_BLUE),
+                (0, 2, Direct.RIGHT, Color.NODE_RED),
             ),
         ]
         for case_name, expected_list, bullet_list, unit_cls, unit_status in test_cases:
@@ -1576,7 +1629,7 @@ class TestField(TestFieldParent):
                 [],
                 [],
                 UnitEnemy,
-                (0, 2, Direct.RIGHT, Color.NODE_BLUE),
+                (0, 2, Direct.RIGHT, Color.NODE_RED),
             ),
         ]
         for (
@@ -1667,7 +1720,7 @@ class TestField(TestFieldParent):
                 [],
                 [],
                 UnitEnemy,
-                (0, 2, Direct.RIGHT, Color.NODE_BLUE),
+                (0, 2, Direct.RIGHT, Color.NODE_RED),
             ),
         ]
         for case_name, expected_list, bullet_list, unit_cls, unit_status in test_cases:
@@ -1868,8 +1921,8 @@ class TestCursor(TestParent):
     def test_draw_update(self):
         ox, oy = PyxelFieldView.FIELD_OFFSET_X, PyxelFieldView.FIELD_OFFSET_Y
         test_cases = [
-            ("(0, 0)", [(0, 0)], [(ox, oy)]),
-            ("(1, 1)", [(1, 1)], [(ox + 8, oy + 8)]),
+            ("(0, 0)", [(0, 0)], [(ox, oy)], False),
+            ("(1, 1)", [(1, 1)], [(ox + 8, oy + 8)], False),
             (
                 "(11, 11)",
                 [
@@ -1884,83 +1937,124 @@ class TestCursor(TestParent):
                         oy + PyxelFieldView.FIELD_HEIGHT - 1,
                     )
                 ],
+                False,
             ),
             (
                 "curve left up",
                 [Action.CURVE.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8, oy)],
+                False,
             ),
             (
                 "curve right down",
                 [Action.CURVE.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8 * 2 - 1, oy + 8 - 1)],
+                False,
             ),
             (
                 "convert rev left up",
                 [Action.CURVE_REV.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8, oy + 8 * 2)],
+                False,
             ),
             (
                 "convert rev right down",
                 [Action.CURVE_REV.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8 * 2 - 1, oy + 8 * 3 - 1)],
+                False,
             ),
             (
                 "convert left up",
                 [Action.CONVERT.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8, oy + 8 * 4)],
+                False,
             ),
             (
                 "convert right down",
                 [Action.CONVERT.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8 * 2 - 1, oy + 8 * 5 - 1)],
+                False,
             ),
             (
                 "split left up",
                 [Action.SPLIT.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8, oy + 8 * 6)],
+                False,
             ),
             (
                 "split right down",
                 [Action.SPLIT.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8 * 2 - 1, oy + 8 * 7 - 1)],
+                False,
             ),
             (
                 "merge left up",
                 [Action.MERGE.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8, oy + 8 * 8)],
+                False,
             ),
             (
                 "merge right down",
                 [Action.MERGE.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8 * 2 - 1, oy + 8 * 9 - 1)],
+                False,
             ),
             (
                 "delete left up",
                 [Action.DELETE.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8, oy + 8 * 11)],
+                False,
             ),
             (
                 "delete right down",
                 [Action.DELETE.value],
                 [(ox + PyxelFieldView.FIELD_WIDTH + 8 * 2 - 1, oy + 8 * 12 - 1)],
+                False,
             ),
-            ("less x", [None], [(ox - 1, oy + 8)]),
-            ("less y", [None], [(ox + 8, oy - 1)]),
-            ("over x", [None], [(ox + PyxelFieldView.FIELD_WIDTH, oy + 8)]),
-            ("over y", [None], [(ox + 8, oy + PyxelFieldView.FIELD_HEIGHT)]),
-            ("double", [(0, 0), None], [(ox, oy), (ox, oy)]),
-            ("hold", [(0, 0), (0, 0)], [(ox, oy), None]),
-            ("double there", [(0, 0), (1, 1)], [(ox, oy), (ox + 8, oy + 8)]),
-            ("double over", [(0, 0), None], [(ox, oy), (ox - 1, oy + 8)]),
-            ("triple", [(0, 0), None, (0, 0)], [(ox, oy), (ox, oy), (ox, oy)]),
+            (
+                "next left up",
+                [Action.NEXT.value],
+                [(ox + PyxelFieldView.FIELD_WIDTH + 8, oy + 8 * 13)],
+                True,
+            ),
+            (
+                "next right down",
+                [Action.NEXT.value],
+                [(ox + PyxelFieldView.FIELD_WIDTH + 8 * 2 - 1, oy + 8 * 14 - 1)],
+                True,
+            ),
+            (
+                "disable next left up",
+                [None],
+                [(ox + PyxelFieldView.FIELD_WIDTH + 8, oy + 8 * 13)],
+                False,
+            ),
+            (
+                "disable next right down",
+                [None],
+                [(ox + PyxelFieldView.FIELD_WIDTH + 8 * 2 - 1, oy + 8 * 14 - 1)],
+                False,
+            ),
+            ("less x", [None], [(ox - 1, oy + 8)], False),
+            ("less y", [None], [(ox + 8, oy - 1)], False),
+            ("over x", [None], [(ox + PyxelFieldView.FIELD_WIDTH, oy + 8)], False),
+            ("over y", [None], [(ox + 8, oy + PyxelFieldView.FIELD_HEIGHT)], False),
+            ("double", [(0, 0), None], [(ox, oy), (ox, oy)], False),
+            ("hold", [(0, 0), (0, 0)], [(ox, oy), None], False),
+            ("double there", [(0, 0), (1, 1)], [(ox, oy), (ox + 8, oy + 8)], False),
+            ("double over", [(0, 0), None], [(ox, oy), (ox - 1, oy + 8)], False),
+            ("triple", [(0, 0), None, (0, 0)], [(ox, oy), (ox, oy), (ox, oy)], False),
         ]
-        for case_name, expected, mouse_pos in test_cases:
+        for case_name, expected, mouse_pos, is_clear in test_cases:
             with self.subTest(
-                case_name=case_name, expected=expected, mouse_pos=mouse_pos
+                case_name=case_name,
+                expected=expected,
+                mouse_pos=mouse_pos,
+                is_clear=is_clear,
             ):
                 self.setUp()
                 cursor = Cursor()
+                cursor.set_stage_clear(is_clear)
                 cursor.update()
                 cursor.draw()
                 for pos in mouse_pos:
@@ -1973,9 +2067,23 @@ class TestCursor(TestParent):
                     cursor.update()
                     cursor.draw()
                 expected_list = []
+                if not is_clear:
+                    expected_list.append(("set_clip", None))
+                    expected_list.append(
+                        (
+                            "draw_rect",
+                            ox + PyxelFieldView.FIELD_WIDTH + 8,
+                            oy + 8 * 13,
+                            8,
+                            8,
+                            Color.BLACK,
+                            True,
+                        )
+                    )
                 for e_pos in expected:
-                    if e_pos is not None:
+                    if e_pos is not None or not is_clear:
                         expected_list.append(("set_clip", None))
+                    if e_pos is not None:
                         expected_list.append(
                             (
                                 "draw_rect",
@@ -1985,6 +2093,18 @@ class TestCursor(TestParent):
                                 8,
                                 Color.RED,
                                 False,
+                            )
+                        )
+                    if not is_clear:
+                        expected_list.append(
+                            (
+                                "draw_rect",
+                                ox + PyxelFieldView.FIELD_WIDTH + 8,
+                                oy + 8 * 13,
+                                8,
+                                8,
+                                Color.BLACK,
+                                True,
                             )
                         )
                 self.assertEqual(
@@ -2077,8 +2197,18 @@ class TestCursor(TestParent):
                     expected_draw_list.append(
                         ("draw_rect", *expected_cursor, 8, 8, Color.RED, False)
                     )
+                    expected_draw_list.append(
+                        (
+                            "draw_rect",
+                            *Cursor.AVAIL_POS_MAP[Action.NEXT][0:2],
+                            8,
+                            8,
+                            Color.BLACK,
+                            True,
+                        )
+                    )
+                    expected_draw_list.append(("set_clip", None))
                     if expected_action_list[i] not in [None, Action.FIELD]:
-                        expected_draw_list.append(("set_clip", None))
                         expected_draw_list.append(
                             (
                                 "draw_rect",
@@ -2089,6 +2219,16 @@ class TestCursor(TestParent):
                                 False,
                             )
                         )
+                    expected_draw_list.append(
+                        (
+                            "draw_rect",
+                            *Cursor.AVAIL_POS_MAP[Action.NEXT][0:2],
+                            8,
+                            8,
+                            Color.BLACK,
+                            True,
+                        )
+                    )
                 self.assertEqual(
                     expected_draw_list, self.test_view.get_call_params(), case_name
                 )
@@ -2143,20 +2283,34 @@ class TestGameCore(TestFieldParent):
                     ]
                 )
             elif draw_action[0] == "cursor":
-                self.expect_view_call.extend(
-                    [
-                        ("set_clip", None),
-                        (
-                            "draw_rect",
-                            draw_action[1] * 8 + PyxelFieldView.FIELD_OFFSET_X,
-                            draw_action[2] * 8 + PyxelFieldView.FIELD_OFFSET_Y,
-                            8,
-                            8,
-                            draw_action[3],
-                            False,
-                        ),
-                    ]
-                )
+                self.expect_view_call.extend([("set_clip", None)])
+                if draw_action[1] is not None:
+                    self.expect_view_call.extend(
+                        [
+                            (
+                                "draw_rect",
+                                draw_action[1][0] * 8 + PyxelFieldView.FIELD_OFFSET_X,
+                                draw_action[1][1] * 8 + PyxelFieldView.FIELD_OFFSET_Y,
+                                8,
+                                8,
+                                draw_action[1][2],
+                                False,
+                            )
+                        ]
+                    )
+                if not draw_action[2]:
+                    self.expect_view_call.extend(
+                        [
+                            (
+                                "draw_rect",
+                                *Cursor.AVAIL_POS_MAP[Action.NEXT][0:2],
+                                8,
+                                8,
+                                Color.BLACK,
+                                True,
+                            ),
+                        ]
+                    )
             elif draw_action[0] == "graph":
                 if draw_action[1] + draw_action[2] == 0:
                     player_rate = 0.5
@@ -2227,7 +2381,14 @@ class TestGameCore(TestFieldParent):
 
     def test_draw(self):
         self.core.draw()
-        self.put_draw_result([["clear"], ["tilemap"], ["graph", 0, 0]])
+        self.put_draw_result(
+            [
+                ["clear"],
+                ["tilemap"],
+                ["cursor", None, False],
+                ["graph", 0, 0],
+            ]
+        )
         self.put_field_draw_result([["player_node"], ["enemy_node"]])
 
     def test_shot(self):
@@ -2270,13 +2431,25 @@ class TestGameCore(TestFieldParent):
                 for _ in range(UnitPlayer.SHOT_INTERVAL):
                     self.core.update()
                     self.core.draw()
-                    self.put_draw_result([["clear"], ["tilemap"], ["graph", 0, 0]])
+                    self.put_draw_result(
+                        [
+                            ["clear"],
+                            ["tilemap"],
+                            ["cursor", None, False],
+                            ["graph", 0, 0],
+                        ]
+                    )
                     self.put_field_draw_result([["player_node"], ["enemy_node"]])
                 for i in range(2):
                     self.core.update()
                     self.core.draw()
                     self.put_draw_result(
-                        [["clear"], ["tilemap"], ["graph", *expected_count_list]]
+                        [
+                            ["clear"],
+                            ["tilemap"],
+                            ["cursor", None, False],
+                            ["graph", *expected_count_list],
+                        ]
                     )
                     if expected_count_list[0] == 1:
                         self.put_field_draw_result(
@@ -2333,13 +2506,17 @@ class TestGameCore(TestFieldParent):
                         self.test_input.set_is_click(False)
                     self.core.update()
                     self.core.draw()
-                self.put_draw_result([["clear"], ["tilemap"], ["graph", 0, 0]])
+                self.put_draw_result(
+                    [["clear"], ["tilemap"], ["cursor", None, False], ["graph", 0, 0]]
+                )
                 self.put_field_draw_result([["player_node"], ["enemy_node"]])
                 for e_pos in expected:
                     self.put_draw_result([["clear"], ["tilemap"]])
                     self.put_field_draw_result([["player_node"], ["enemy_node"]])
                     if e_pos is not None:
-                        self.put_draw_result([["cursor", *e_pos, Color.RED]])
+                        self.put_draw_result([["cursor", [*e_pos, Color.RED], False]])
+                    else:
+                        self.put_draw_result([["cursor", None, False]])
                     self.put_draw_result([["graph", 0, 0]])
                 self.tearDown()
 
@@ -2361,7 +2538,7 @@ class TestGameCore(TestFieldParent):
                     [
                         ["clear"],
                         ["tilemap"],
-                        ["cursor", *Action.CURVE.value, Color.BLUE],
+                        ["cursor", [*Action.CURVE.value, Color.BLUE], False],
                         ["graph", 0, 0],
                     ]
                 )
@@ -2370,7 +2547,9 @@ class TestGameCore(TestFieldParent):
                 self.core.update()
                 self.core.update()
                 self.core.draw()
-                self.put_draw_result([["clear"], ["tilemap"], ["graph", 0, 0]])
+                self.put_draw_result(
+                    [["clear"], ["tilemap"], ["cursor", None, False], ["graph", 0, 0]]
+                )
                 self.put_field_draw_result([["player_node"], ["enemy_node"]])
                 if expected is not None:
                     self.put_field_draw_result([["field_node", *expected]])
@@ -2393,7 +2572,9 @@ class TestGameCore(TestFieldParent):
                     self.core.update()
                     self.core.update()
                 self.core.draw()
-                self.put_draw_result([["clear"], ["tilemap"], ["graph", 0, 0]])
+                self.put_draw_result(
+                    [["clear"], ["tilemap"], ["cursor", None, False], ["graph", 0, 0]]
+                )
                 self.put_field_draw_result([["player_node"], ["enemy_node"]])
                 if expected is not None:
                     self.put_field_draw_result([["field_node", *expected]])
@@ -2420,7 +2601,7 @@ class TestGameCore(TestFieldParent):
                     [
                         ["clear"],
                         ["tilemap"],
-                        ["cursor", *Action.DELETE.value, Color.BLUE],
+                        ["cursor", [*Action.DELETE.value, Color.BLUE], False],
                         ["graph", 0, 0],
                     ]
                 )
@@ -2432,7 +2613,9 @@ class TestGameCore(TestFieldParent):
                 self.core.update()
                 self.core.update()
                 self.core.draw()
-                self.put_draw_result([["clear"], ["tilemap"], ["graph", 0, 0]])
+                self.put_draw_result(
+                    [["clear"], ["tilemap"], ["cursor", None, False], ["graph", 0, 0]]
+                )
                 self.put_field_draw_result([["player_node"], ["enemy_node"]])
                 if expected_exist:
                     self.put_field_draw_result(
@@ -2440,36 +2623,56 @@ class TestGameCore(TestFieldParent):
                     )
                 self.tearDown()
 
+    @patch.object(Field, "get_bullet_count")
+    @patch.object(random, "randint")
+    def test_next(self, mock_randint, mock_get_bullet_count):
+        for unit in self.core.field.unit_list:
+            unit.interval = -10000000
+        mock_randint.return_value = 1
+        mock_get_bullet_count.return_value = (1, 0)
+        self.core.field.build(Action.CURVE, 0, 0)
+        self.core.draw()
+        self.put_draw_result(
+            [
+                ["clear"],
+                ["tilemap"],
+                ["cursor", None, False],
+                ["graph", 1, 0],
+            ]
+        )
+        self.put_field_draw_result([["player_node"], ["enemy_node"]])
+        self.put_field_draw_result(
+            [["field_node", (0, 0), Node.UNIT_CURVE, Direct.RIGHT]]
+        )
+        for _ in range(GameCore.WAIT_ENABLE_NEXT_TERN + 1):
+            self.core.update()
+        self.core.draw()
+        self.put_draw_result(
+            [
+                ["clear"],
+                ["tilemap"],
+                ["graph", 1, 0],
+            ]
+        )
+        self.put_field_draw_result([["player_node"], ["enemy_node"]])
+        self.put_field_draw_result(
+            [["field_node", (0, 0), Node.UNIT_CURVE, Direct.RIGHT]]
+        )
+        self.test_input.set_mouse_pos(*Cursor.AVAIL_POS_MAP[Action.NEXT][0:2])
+        self.test_input.set_is_click(True)
+        self.core.update()
+        self.core.update()
+        self.core.draw()
+        self.put_draw_result(
+            [
+                ["clear"],
+                ["tilemap"],
+                ["cursor", None, False],
+                ["graph", 1, 0],
+            ]
+        )
+        self.put_field_draw_result([["player_node"], ["enemy_node"]])
+
 
 if __name__ == "__main__":
     unittest.main()
-
-
-# TODO: 勢力メータの作成
-# TODO: 　敵を鎮圧（弾が数秒0だったら）したら、クリアボタンが出てくる。
-
-# TODO: ゲーム条件のパラメータ化
-# TODO: 　上記条件に合致したら、できるだけ、そのほかはランダムにしたい。（色のパターンとか、配置場所とか）
-
-# TODO: 灰色と灰色で黒
-# TODO: オブジェクト配置に制約を設ける。
-# TODO: 　敵オブジェクトや敵の弾を打破すると、資材が増える。
-# TODO: 　オブジェクト配置に、資材を消費する。
-# TODO: ゲームオーバー画面の実装（自機のHPが0になったら）
-# TODO: スプリットの反対バージョンが欲しい
-# TODO: 敵スポーンで、残り1マスになったら、2つ増えるのではなく、より強い敵が一つ増える。（攻撃間隔が狭いとか）
-# TODO: スプリットオブジェクトは振り分けるけど、増幅はさせない。
-# TODO: 増幅オブジェクトを配置できるようにする。素通りするけど、時間をずらして弾の数が増える。
-# TODO: 弾がオブジェクトを通過するとき、ちょっと時間を空けてから出したほうが通過した感じがある。
-# TODO: 敵の弾がcurveなどのオブジェクトを破壊する。
-# TODO: 敵オブジェクトが砲台を打破しようとする。
-# TODO: 　敵オブジェクトの弾道を作る。砲台との経路をたどる。取り合えず経路は最短
-# TODO: 　ランダムに敵オブジェクトが生成される。
-# TODO: 　敵オブジェクトの弾の経路を、ある程度ランダムにする。（かぶらないように。）
-# TODO: 　敵オブジェクトの初期向きは、画面外方向以外ランダム
-# TODO: node配置時に、配置できないことを表現する。（カーソルが赤くなる、バッテンマークが出てくるとか）
-# TODO: 　配置できない所を、赤のマスクで覆ってあげたらよいのでは？50%ditherしたrectで、配置できない場所を描画する。
-# TODO: nodeの配置可能場所は、だんだん広くなっていくのは？例えば、配置したオブジェクトの近くにしかおけないとか。
-# TODO: 敵オブジェクトの打破アニメーション
-# TODO: 弾の移動速度を可変にする。
-# TODO: 　弾は数フレームごとに1AXIS移動するくらいのスピード。最終的には1フレームで複数AXIS動くけど、その最大はTILEのWIDTH/HEIGHT未満
