@@ -1,529 +1,53 @@
 # title: pyxel convert send
 # author: masatobu
 
-from abc import ABC, abstractmethod
 from enum import Enum
 import random
 
-
-class IView(ABC):
-    @abstractmethod
-    def draw_text(self, x, y, text):
-        pass
-
-    @abstractmethod
-    def draw_tilemap(self):
-        pass
-
-    @abstractmethod
-    def draw_image(self, x, y, src_tile_x, src_tile_y, direct):
-        pass
-
-    @abstractmethod
-    def draw_rect(self, x, y, width, height, color, is_fill):
-        pass
-
-    @abstractmethod
-    def clear(self):
-        pass
-
-    @abstractmethod
-    def set_clip(self, rect):
-        pass
-
-    @abstractmethod
-    def set_pal(self, params):
-        pass
-
-    @classmethod
-    def create(cls):
-        return cls()
-
-
-class Color(Enum):
-    RED = 8
-    BLUE = 12
-    WHITE = 7
-    NODE_BLUE = 12
-    NODE_RED = 8
-    NODE_GREEN = 11
-    NODE_YELLOW = 10
-    NODE_ORANGE = 9
-    NODE_GRAY = 13
-    PLAYER = 6
-    ENEMY = 14
-    BLACK = 0
-
-
-class Direct(Enum):
-    RIGHT = (1, 0)
-    UP = (0, -1)
-    LEFT = (-1, 0)
-    DOWN = (0, 1)
-
-
-class PyxelView(IView):
-    TILE_MAP_WIDTH = 8 * (8 * 2)
-    TILE_MAP_HEIGHT = 8 * (8 * 2 - 1)
-
-    def __init__(self):
-        import pyxel  # pylint: disable=W0621, C0415
-
-        self.pyxel = pyxel
-
-    def draw_text(self, x, y, text):
-        self.pyxel.text(x, y, text, 7)
-
-    def draw_tilemap(self):
-        self.pyxel.bltm(0, 0, 0, 0, 0, self.TILE_MAP_WIDTH, self.TILE_MAP_HEIGHT)
-
-    def draw_image(self, x, y, src_tile_x, src_tile_y, direct):
-        degree_map = {
-            Direct.RIGHT: 0,
-            Direct.UP: 270,
-            Direct.LEFT: 180,
-            Direct.DOWN: 90,
-        }
-        self.pyxel.blt(
-            x,
-            y,
-            0,
-            src_tile_x * 8,
-            src_tile_y * 8,
-            8,
-            8,
-            colkey=0,
-            rotate=degree_map[direct],
-        )
-
-    def draw_rect(self, x, y, width, height, color, is_fill):
-        param = {"x": x, "y": y, "w": width, "h": height, "col": color.value}
-        if is_fill:
-            self.pyxel.rect(**param)
-        else:
-            self.pyxel.rectb(**param)
-
-    def clear(self):
-        self.pyxel.cls(0)
-
-    def set_clip(self, rect):
-        if rect is None:
-            self.pyxel.clip()
-        else:
-            self.pyxel.clip(*rect)
-
-    def set_pal(self, params):
-        self.pyxel.pal(*[col.value for col in params])
-
-
-class Image(Enum):
-    PLAYER = (4, 1)
-    PLAYER_BULLET = (5, 0)
-    CURVE = (5, 1)
-    CURVE_REV = (5, 2)
-    CONVERT = (6, 1)
-    SPLIT = (6, 2)
-    MERGE = (7, 2)
-    ENEMY = (7, 1)
-    ENEMY_BULLET = (7, 0)
-
-
-class Node(Enum):
-    UNIT_PLAYER = Image.PLAYER
-    UNIT_CURVE = Image.CURVE
-    UNIT_CURVE_REV = Image.CURVE_REV
-    UNIT_SPLIT = Image.SPLIT
-    UNIT_CONVERT = Image.CONVERT
-    UNIT_MERGE = Image.MERGE
-    UNIT_ENEMY = Image.ENEMY
-
-
-class IFieldView(ABC):
-    @abstractmethod
-    def draw_node(self, tile_x, tile_y, node, direct, color):
-        pass
-
-    @abstractmethod
-    def draw_object(self, x, y, image, color):
-        pass
-
-    @classmethod
-    def create(cls):
-        return cls()
-
-
-class PyxelFieldView(IFieldView):
-    FIELD_TILE_WIDTH = 12
-    FIELD_TILE_HEIGHT = 12
-    FIELD_OFFSET_X = 8
-    FIELD_OFFSET_Y = 8
-    FIELD_WIDTH = 8 * FIELD_TILE_WIDTH
-    FIELD_HEIGHT = 8 * FIELD_TILE_HEIGHT
-    NODE_BASE_COLOR = Color.WHITE
-
-    def __init__(self):
-        super().__init__()
-        self.view = PyxelView.create()
-
-    def _draw(self, params, color):
-        if color is not None:
-            self.view.set_pal([self.NODE_BASE_COLOR, color])
-        self.view.draw_image(*params)
-        if color is not None:
-            self.view.set_pal([])
-
-    def draw_node(self, tile_x, tile_y, node, direct, color):
-        self._draw(
-            (
-                8 * tile_x + self.FIELD_OFFSET_X,
-                8 * tile_y + self.FIELD_OFFSET_Y,
-                *node.value.value,
-                direct,
-            ),
-            color,
-        )
-
-    def draw_object(self, x, y, image, color):
-        self._draw(
-            (
-                x - 8 // 2 + self.FIELD_OFFSET_X,
-                y - 8 // 2 + self.FIELD_OFFSET_Y,
-                *image.value,
-                Direct.RIGHT,
-            ),
-            color,
-        )
-
-    @classmethod
-    def get_rect(cls):
-        return cls.FIELD_OFFSET_X, cls.FIELD_OFFSET_Y, cls.FIELD_WIDTH, cls.FIELD_HEIGHT
-
-
-class IInput(ABC):
-    @abstractmethod
-    def is_click(self):
-        pass
-
-    @abstractmethod
-    def get_mouse_x(self):
-        pass
-
-    @abstractmethod
-    def get_mouse_y(self):
-        pass
-
-    @classmethod
-    def create(cls):
-        return cls()
-
-
-class PyxelInput(IInput):
-    def __init__(self):
-        import pyxel  # pylint: disable=W0621, C0415
-
-        self.pyxel = pyxel
-
-    def is_click(self):
-        return self.pyxel.btnp(self.pyxel.MOUSE_BUTTON_LEFT)
-
-    def get_mouse_x(self):
-        return self.pyxel.mouse_x
-
-    def get_mouse_y(self):
-        return self.pyxel.mouse_y
-
-
-class GameObject(ABC):
-    MONITOR_HEIGHT = PyxelView.TILE_MAP_HEIGHT
-    MONITOR_WIDTH = PyxelView.TILE_MAP_WIDTH
-
-    def __init__(self):
-        self.view = PyxelView.create()
-        self.input = PyxelInput.create()
-
-    @abstractmethod
-    def draw(self):
-        pass
-
-    def update(self):
-        pass
-
-
-class FieldObject(GameObject):
-    def __init__(self):
-        super().__init__()
-        self.field_view = PyxelFieldView.create()
-
-
-class FieldNode(FieldObject):
-    def __init__(self, tile_x, tile_y, node):
-        super().__init__()
-        self.tile_x = tile_x
-        self.tile_y = tile_y
-        self.node = node
-        self.direct = Direct.RIGHT
-        self.bullet_cls = Bullet
-        self.color = None
-
-    def draw(self):
-        self.field_view.draw_node(
-            self.tile_x, self.tile_y, self.node, self.direct, self.color
-        )
-
-    @classmethod
-    def node_factory(cls, tile_x, tile_y, node):
-        node_class_map = {
-            Node.UNIT_PLAYER: UnitPlayer,
-            Node.UNIT_CURVE: Curve,
-            Node.UNIT_CURVE_REV: Curve,
-            Node.UNIT_CONVERT: Convert,
-            Node.UNIT_SPLIT: Split,
-            Node.UNIT_MERGE: Merge,
-        }
-        node_cls = node_class_map.get(node)
-        param = [tile_x, tile_y]
-        if node in [Node.UNIT_CURVE, Node.UNIT_CURVE_REV]:
-            param += [node == Node.UNIT_CURVE_REV]
-        return node_cls(*param) if node_cls is not None else None
-
-    def shot(self, direct=None, color=None):
-        d = direct.value if direct is not None else self.direct.value
-        return self.bullet_cls(
-            self.tile_x + d[0],
-            self.tile_y + d[1],
-            direct if direct is not None else self.direct,
-            self.color if self.color is not None else color,
-        )
-
-    @abstractmethod
-    def mainte(self):
-        pass
-
-    def get_tile_pos(self):
-        return self.tile_x, self.tile_y
-
-
-class Unit(FieldNode):
-    def __init__(self, tile_x, tile_y, unit):
-        super().__init__(tile_x, tile_y, unit)
-        self.interval = 0
-        self.max_interval = 0
-        self.hp = 0
-
-    def shot(self, direct=None, color=None):
-        if self.interval < self.max_interval:
-            self.interval += 1
-            return None
-        else:
-            self.interval = 0
-            return super().shot(direct, color)
-
-    def mainte(self):
-        pass
-
-    def hit(self, bullet):
-        if not isinstance(bullet, self.bullet_cls):
-            self.hp -= 1
-
-    def is_death(self):
-        return self.hp <= 0
-
-
-class UnitPlayer(Unit):
-    SHOT_INTERVAL = 10  # over tile_width / bullet_speed
-    MAX_HP = 10
-
-    def __init__(self, tile_x, tile_y):
-        super().__init__(tile_x, tile_y, Node.UNIT_PLAYER)
-        self.max_interval = self.SHOT_INTERVAL
-        self.bullet_cls = BulletPlayer
-        self.hp = self.MAX_HP
-        self.color = Color.NODE_BLUE
-
-
-class UnitEnemy(Unit):
-    SHOT_INTERVAL = 20  # over tile_width / bullet_speed
-    MAX_HP = 3
-
-    def __init__(self, tile_x, tile_y, color=Color.NODE_RED):
-        super().__init__(tile_x, tile_y, Node.UNIT_ENEMY)
-        self.max_interval = self.SHOT_INTERVAL
-        self.direct = Direct.LEFT
-        self.bullet_cls = BulletEnemy
-        self.hp = self.MAX_HP
-        self.color = color
-
-    def hit(self, bullet):
-        if self.color == bullet.color:
-            super().hit(bullet)
-
-
-class Curve(FieldNode):
-    CYCLE_MAP = {
-        Direct.UP: Direct.RIGHT,
-        Direct.RIGHT: Direct.DOWN,
-        Direct.DOWN: Direct.LEFT,
-        Direct.LEFT: Direct.UP,
-    }
-    REV_CYCLE_MAP = {
-        Direct.UP: Direct.LEFT,
-        Direct.LEFT: Direct.DOWN,
-        Direct.DOWN: Direct.RIGHT,
-        Direct.RIGHT: Direct.UP,
-    }
-
-    def __init__(self, tile_x, tile_y, rev):
-        super().__init__(
-            tile_x, tile_y, Node.UNIT_CURVE_REV if rev else Node.UNIT_CURVE
-        )
-        self.cycle_map = self.REV_CYCLE_MAP if rev else self.CYCLE_MAP
-        self.bullet_cls = BulletPlayer
-
-    def reshot(self, bullet):
-        if (
-            not isinstance(bullet, self.bullet_cls)
-            or self.cycle_map[bullet.direct] != self.direct
-        ):
-            return []
-        return [super().shot(color=bullet.color)]
-
-    def mainte(self):
-        self.direct = self.CYCLE_MAP[self.direct]
-
-
-class Convert(FieldNode):
-    CYCLE_MAP = {
-        Color.NODE_BLUE: Color.NODE_RED,
-        Color.NODE_RED: Color.NODE_GREEN,
-        Color.NODE_GREEN: Color.NODE_BLUE,
-    }
-
-    def __init__(self, tile_x, tile_y):
-        super().__init__(tile_x, tile_y, Node.UNIT_CONVERT)
-        self.bullet_cls = BulletPlayer
-        self.color = Color.NODE_BLUE
-
-    def reshot(self, bullet):
-        if not isinstance(bullet, self.bullet_cls):
-            return []
-        return [super().shot(bullet.direct)]
-
-    def mainte(self):
-        self.color = self.CYCLE_MAP[self.color]
-
-
-class Split(FieldNode):
-    CYCLE_MAP = {
-        Direct.UP: Direct.RIGHT,
-        Direct.RIGHT: Direct.DOWN,
-        Direct.DOWN: Direct.LEFT,
-        Direct.LEFT: Direct.UP,
-    }
-
-    def __init__(self, tile_x, tile_y):
-        super().__init__(tile_x, tile_y, Node.UNIT_SPLIT)
-        self.bullet_cls = BulletPlayer
-
-    def mainte(self):
-        self.direct = self.CYCLE_MAP[self.direct]
-
-    def reshot(self, bullet):
-        if (
-            not isinstance(bullet, self.bullet_cls)
-            or self.CYCLE_MAP[bullet.direct] != self.direct
-        ):
-            return []
-        return [
-            super().shot(color=bullet.color),
-            super().shot(direct=bullet.direct, color=bullet.color),
-        ]
-
-
-class Merge(FieldNode):
-    CYCLE_MAP = {
-        Direct.UP: Direct.RIGHT,
-        Direct.RIGHT: Direct.DOWN,
-        Direct.DOWN: Direct.LEFT,
-        Direct.LEFT: Direct.UP,
-    }
-    ACCEPT_MAP = {
-        Direct.UP: [Direct.RIGHT, Direct.LEFT],
-        Direct.RIGHT: [Direct.DOWN, Direct.UP],
-        Direct.DOWN: [Direct.RIGHT, Direct.LEFT],
-        Direct.LEFT: [Direct.DOWN, Direct.UP],
-    }
-    COLOR_MAP = {
-        frozenset([Color.NODE_BLUE, Color.NODE_BLUE]): Color.NODE_BLUE,
-        frozenset([Color.NODE_RED, Color.NODE_RED]): Color.NODE_RED,
-        frozenset([Color.NODE_GREEN, Color.NODE_GREEN]): Color.NODE_GREEN,
-        frozenset([Color.NODE_RED, Color.NODE_GREEN]): Color.NODE_YELLOW,
-        frozenset([Color.NODE_RED, Color.NODE_YELLOW]): Color.NODE_ORANGE,
-    }
-
-    def __init__(self, tile_x, tile_y):
-        super().__init__(tile_x, tile_y, Node.UNIT_MERGE)
-        self.bullet_cls = BulletPlayer
-        self.buffer = None
-
-    def mainte(self):
-        self.direct = self.CYCLE_MAP[self.direct]
-
-    def reshot(self, bullet):
-        if (
-            not isinstance(bullet, self.bullet_cls)
-            or bullet.direct not in self.ACCEPT_MAP[self.direct]
-        ):
-            return []
-        if self.buffer is None:
-            self.buffer = bullet
-            return []
-        merge_color = self.COLOR_MAP.get(
-            frozenset([self.buffer.color, bullet.color]), Color.NODE_GRAY
-        )
-        self.buffer = None
-        return [super().shot(color=merge_color)]
-
-
-class Bullet(FieldObject):
-    @staticmethod
-    def get_start_pos(pos):
-        return 8 // 2 if pos == 0 else 0 if pos > 0 else 8 - 1
-
-    def __init__(self, tile_x, tile_y, d, color):
-        super().__init__()
-        self.x = tile_x * 8 + self.get_start_pos(d.value[0])
-        self.y = tile_y * 8 + self.get_start_pos(d.value[1])
-        self.direct = d
-        self.color = color
-
-    def update(self):
-        self.x, self.y = self.x + self.direct.value[0], self.y + self.direct.value[1]
-
-    def draw(self):
-        self.field_view.draw_object(
-            self.x,
-            self.y,
-            self.image,
-            self.color,
-        )
-
-    def get_pos(self):
-        return self.x, self.y
-
-    def get_tile_pos(self):
-        return tuple(p // 8 for p in self.get_pos())
-
-
-class BulletPlayer(Bullet):
-    def __init__(self, tile_x, tile_y, d, color=Color.NODE_BLUE):
-        super().__init__(tile_x, tile_y, d, color)
-        self.image = Image.PLAYER_BULLET
-
-
-class BulletEnemy(Bullet):
-    def __init__(self, tile_x, tile_y, d, color=Color.NODE_BLUE):
-        super().__init__(tile_x, tile_y, d, color)
-        self.image = Image.ENEMY_BULLET
+try:
+    from .framework import (
+        PyxelFieldView,
+        Direct,
+        Node,
+        Color,
+        GameObject,
+        FieldObject,
+        Image,
+    )  # pylint: disable=C0413
+    from .field_nodes import (
+        UnitPlayer,
+        UnitEnemy,
+        BulletPlayer,
+        BulletEnemy,
+        Curve,
+        Convert,
+        Split,
+        Merge,
+        Unit,
+        FieldNode,
+    )  # pylint: disable=C0413
+except ImportError:
+    from framework import (
+        PyxelFieldView,
+        Direct,
+        Node,
+        Color,
+        GameObject,
+        FieldObject,
+        Image,
+    )  # pylint: disable=C0413
+    from field_nodes import (
+        UnitPlayer,
+        UnitEnemy,
+        BulletPlayer,
+        BulletEnemy,
+        Curve,
+        Convert,
+        Split,
+        Merge,
+        Unit,
+        FieldNode,
+    )  # pylint: disable=C0413
 
 
 class Action(Enum):
@@ -730,6 +254,13 @@ class Field(FieldObject):
         )
         return player_num, total - player_num
 
+    def get_enemy_color(self, tile_x, tile_y):
+        if (tile_x, tile_y) in self.node_map:
+            node = self.node_map[(tile_x, tile_y)]
+            if isinstance(node, UnitEnemy):
+                return node.get_color()
+        return None
+
 
 class Cursor(GameObject):
     AVAIL_POS_MAP = {Action.FIELD: PyxelFieldView.get_rect()} | {
@@ -836,20 +367,93 @@ class Cursor(GameObject):
         self.flg_stage_clear = flg_stage_clear
 
 
-class GameCore(GameObject):
+class Scout(GameObject):
+    FRAME_RECT = (-10, -3, 17, 14)
+    PADDING_CENTER = (4, 3)
+    PADDING_UP = (0, 0)
+    PADDING_DOWN = (0, 6)
+
+    def __init__(self, tile_y, color):
+        super().__init__()
+        x_pos = (
+            PyxelFieldView.FIELD_OFFSET_X
+            + PyxelFieldView.FIELD_WIDTH
+            - self.FRAME_RECT[2]
+            + self.FRAME_RECT[0]
+        )
+        y_pos = 8 * tile_y + PyxelFieldView.FIELD_OFFSET_Y + self.FRAME_RECT[1]
+        self.draw_pos = (x_pos, y_pos)
+        self.color = color
+        self.merge_color = self._get_merge_color(color)
+
+    def _get_merge_color(self, color):
+        for merge_color, key_color in Merge.COLOR_MAP.items():
+            # 配合色が異なる場合のみ設定する
+            if color == key_color and len(merge_color) > 1:
+                return sorted(merge_color, key=lambda x: x.value)
+        return None
+
+    def _draw_elm(self, kind, pos_list, opt):
+        draw_pos = tuple(
+            pos + padding + line_pos for pos, padding, line_pos in zip(*pos_list)
+        )
+        if kind == "draw_image":
+            self.view.set_pal([Color.WHITE, opt])
+            self.view.draw_image(*draw_pos, *Image.PLAYER_BULLET.value, Direct.RIGHT)
+            self.view.set_pal([])
+        elif kind == "draw_text":
+            self.view.draw_text(*draw_pos, opt)
+
+    def draw(self):
+        self.view.set_clip(None)
+        self.view.draw_rect(*self.draw_pos, *self.FRAME_RECT[2:4], Color.BLACK, True)
+        self.view.draw_rect(*self.draw_pos, *self.FRAME_RECT[2:4], Color.GREEN, False)
+        if self.merge_color is not None:
+            for kind, padding, line_pos, opt in [
+                ("draw_image", Scout.PADDING_UP, (0, 0), self.color),
+                ("draw_text", Scout.PADDING_UP, (7, 2), "="),
+                ("draw_image", Scout.PADDING_DOWN, (0, 0), self.merge_color[0]),
+                ("draw_text", Scout.PADDING_DOWN, (7, 1), "+"),
+                ("draw_image", Scout.PADDING_DOWN, (9, 0), self.merge_color[1]),
+            ]:
+                self._draw_elm(kind, [self.draw_pos, padding, line_pos], opt)
+        else:
+            self._draw_elm(
+                "draw_image",
+                [self.draw_pos, Scout.PADDING_CENTER, (0, 0)],
+                self.color,
+            )
+
+
+class GameParameter:
     GAMA_PARAMS_LIST = [
-        (2, [Color.NODE_RED, Color.NODE_ORANGE]),
-        (2, [Color.NODE_BLUE, Color.NODE_RED, Color.NODE_GREEN] * 2),
-        (4, [Color.NODE_RED, Color.NODE_GREEN, Color.NODE_YELLOW]),
+        (2, [Color.NODE_RED, Color.NODE_GREEN, Color.NODE_BLUE] * 2),
+        (4, [Color.NODE_YELLOW, Color.NODE_RED, Color.NODE_GREEN]),
+        (4, [Color.NODE_CYAN, Color.NODE_GREEN, Color.NODE_BLUE]),
+        (4, [Color.NODE_PURPLE, Color.NODE_RED, Color.NODE_BLUE]),
+        (2, [Color.NODE_YELLOW, Color.NODE_ORANGE]),
+        (2, [Color.NODE_YELLOW, Color.NODE_BROWN]),
+        (2, [Color.NODE_PURPLE, Color.NODE_NAVY]),
+        (2, [Color.NODE_CYAN, Color.NODE_DEEP_BLUE]),
     ]
+
+    @classmethod
+    def get(cls):
+        param = random.randint(0, len(cls.GAMA_PARAMS_LIST) - 1)
+        return cls.GAMA_PARAMS_LIST[param]
+
+
+class GameCore(GameObject):
     WAIT_ENABLE_NEXT_TERN = 180
 
-    def __init__(self, param_num=None):
+    def __init__(self):
         super().__init__()
         self.field = None
         self.cursor = None
         self.stage_clear_tern = 0
-        self._game_reset(set_param=param_num)
+        self.scout = None
+        self.parameter = GameParameter()
+        self._game_reset()
 
     def update(self):
         self._action()
@@ -868,25 +472,30 @@ class GameCore(GameObject):
         self.cursor.update()
         click_pos = self.cursor.get_select_pos()
         aft_act = self.cursor.get_action()
+        if click_pos is not None:
+            self.scout = None
         if aft_act == Action.NEXT:
             self._game_reset()
         elif aft_act == Action.FIELD and click_pos is not None:
             if bef_act is None or bef_act == Action.FIELD:
-                self.field.mainte(*click_pos)
+                enemy_color = self.field.get_enemy_color(*click_pos)
+                if enemy_color is not None:
+                    self.scout = Scout(click_pos[1], enemy_color)
+                else:
+                    self.field.mainte(*click_pos)
             elif bef_act == Action.DELETE:
                 self.field.delete(*click_pos)
             else:
                 self.field.build(bef_act, *click_pos)
 
-    def _game_reset(self, set_param=None):
-        param = (
-            set_param
-            if set_param is not None
-            else random.randint(0, len(self.GAMA_PARAMS_LIST) - 1)
-        )
-        self.field = Field(*self.GAMA_PARAMS_LIST[param])
+    def _get_game_parameter(self):
+        return self.parameter.get()
+
+    def _game_reset(self):
+        self.field = Field(*self._get_game_parameter())
         self.cursor = Cursor()
         self.stage_clear_tern = 0
+        self.scout = None
 
     def draw(self):
         self.view.clear()
@@ -894,6 +503,8 @@ class GameCore(GameObject):
         self.field.draw()
         self.cursor.draw()
         self._draw_graph()
+        if self.scout is not None:
+            self.scout.draw()
 
     def _draw_graph(self):
         player_count, enemy_count = self.field.get_bullet_count()
