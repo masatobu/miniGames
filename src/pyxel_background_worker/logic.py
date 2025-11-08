@@ -1,4 +1,5 @@
 from enum import Enum
+import time
 
 
 class Job(Enum):
@@ -66,13 +67,17 @@ class GameLogic:
     COLLECT_RATE = 2
     BUILDING_CAPACITY = 4
     BUILDING_BASE_WORKLOAD = 3
+    BACKGROUND_WORK_PER_TURN = 60
+    BACKGROUND_WORK_MAX_TIME = (60 * 60 * 24 * 2) // BACKGROUND_WORK_PER_TURN
+    TARGET_NUM = 50
 
     def __init__(self):
-        self.message = "test"
         self.workers = []
         self.resource_map = {r: 0 for r in Resource}
+        self.resource_map[Resource.FOOD] = 100
         self.building_num_map = {b: 1 for b in Building}
         self.build_workload_map = {b: 0 for b in Building}
+        self.target_num = self.TARGET_NUM
 
     def add_worker(self) -> int | None:
         if self.BUILDING_CAPACITY * self.get_building_num(Building.HOUSE) <= len(
@@ -92,18 +97,35 @@ class GameLogic:
             ]
         )
 
+    def get_target_num(self):
+        return self.target_num
+
+    def is_clear(self):
+        return self.get_worker_num() >= self.target_num
+
     def get_building_num(self, building):
         return self.building_num_map[building]
+
+    def get_stay_building_num(self, building):
+        building_job_map = {
+            building: job for job, building in self.JOB_BUILDING_MAP.items()
+        }
+        return (
+            self.get_worker_num(building_job_map.get(building, None))
+            // self.BUILDING_CAPACITY
+        )
 
     def _worker_id_check(self, worker_index):
         return worker_index is not None and 0 <= worker_index < len(self.workers)
 
-    def set_worker_job(self, worker_index, job, place):
+    def set_worker_job(self, worker_index, job, place) -> bool:
         if self._worker_id_check(worker_index):
             if job in [Job.BUILDER, None] or self.building_num_map[
                 self.JOB_BUILDING_MAP[job]
             ] * self.BUILDING_CAPACITY > self.get_worker_num(job):
                 self.workers[worker_index].set_job(job, place)
+                return True
+        return False
 
     def get_worker_job(self, worker_index):
         if self._worker_id_check(worker_index):
@@ -138,20 +160,26 @@ class GameLogic:
             }
         return {}
 
-    def turn(self):
-        self._turn_harvest()
-        self._turn_build()
-        self._turn_consume()
+    def get_build_cost(self, place) -> dict[Resource, int]:
+        rate = 1 if self.get_build_progress(place) == 0 else 2
+        return {
+            k: v * rate for k, v in self.get_resource_change(Job.BUILDER, place).items()
+        }
 
-    def _turn_harvest(self):
+    def turn(self, rate=1):
+        self._turn_harvest(rate)
+        self._turn_build(rate)
+        self._turn_consume(rate)
+
+    def _turn_harvest(self, rate):
         for job in self.JOB_RESOURCE_MAP:
             for resource, num in self.get_resource_change(job, None).items():
-                self.resource_map[resource] += num
+                self.resource_map[resource] += num * rate
 
-    def _turn_consume(self):
+    def _turn_consume(self, rate):
         degreese_list = []
         for resource, num in self.get_resource_change(None, None).items():
-            self.resource_map[resource] += num
+            self.resource_map[resource] += num * rate
             result = self.resource_map[resource]
             if result < 0:
                 degreese_list.append(result)
@@ -168,7 +196,7 @@ class GameLogic:
         self.resource_map = new_resoruce_map
         return True
 
-    def _turn_build(self):
+    def _turn_build(self, rate):
         for building in Building:
             worker_num = self.get_worker_num(Job.BUILDER, building)
             if worker_num > 0:
@@ -176,7 +204,7 @@ class GameLogic:
                     if self._pay_builing_cost(building):
                         self.build_workload_map[building] = worker_num
                 else:
-                    self.build_workload_map[building] += worker_num
+                    self.build_workload_map[building] += worker_num * rate
                     if self.get_build_progress(building) >= self.get_time_cost(
                         building
                     ):
@@ -191,6 +219,7 @@ class GameLogic:
             "build_workload_map": {
                 b.name: v for b, v in self.build_workload_map.items()
             },
+            "time": time.time(),
         }
 
     @classmethod
@@ -205,7 +234,11 @@ class GameLogic:
             obj.build_workload_map = {
                 Building[b]: v for b, v in data["build_workload_map"].items()
             }
+            for _ in range(
+                min(
+                    cls.BACKGROUND_WORK_MAX_TIME,
+                    int((time.time() - data["time"]) / cls.BACKGROUND_WORK_PER_TURN),
+                )
+            ):
+                obj.turn(rate=cls.BACKGROUND_WORK_PER_TURN)
         return obj
-
-    def get_message(self):
-        return self.message
