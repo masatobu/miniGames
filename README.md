@@ -6,3 +6,4 @@ Click the links below to play the game.
 - [pyxel baseball](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.dist.pyxel_baseball.pyxel_baseball_v1_0 "move to pyxel web launcher")
 - [pyxel expand area](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.dist.pyxel_expand_area.pyxel_expand_area_v1_0 "move to pyxel web launcher")
 - [pyxel background worker](https://masatobu.github.io/miniGames/pyxel_background_worker/pyxel_background_worker_v1_0.html "move to github.io")
+- [pyxel dig smith](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.dist.pyxel_dig_smith.pyxel_dig_smith_v1_0 "move to pyxel web launcher")
