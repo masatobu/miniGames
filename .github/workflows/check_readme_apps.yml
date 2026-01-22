@@ -1,0 +1,44 @@
+name: Check apps directories in README
+
+on:
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'apps/**'
+
+jobs:
+  check-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get apps directories and check README
+        run: |
+          # appsディレクトリ配下のディレクトリ名を取得
+          apps_dirs=$(find apps -maxdepth 1 -type d ! -name 'apps' | sed 's|^apps/||' | sort)
+          
+          echo "Found apps directories:"
+          echo "$apps_dirs"
+          echo ""
+          
+          # README.mdに各ディレクトリ名が含まれているか確認
+          readme_content=$(cat README.md)
+          missing_dirs=()
+          
+          for dir in $apps_dirs; do
+            if ! echo "$readme_content" | grep -q "$dir"; then
+              missing_dirs+=("$dir")
+            fi
+          done
+          
+          # 結果を出力
+          if [ ${#missing_dirs[@]} -gt 0 ]; then
+            echo "❌ Error: The following directories are not mentioned in README.md:"
+            for dir in "${missing_dirs[@]}"; do
+              echo "  - $dir"
+            done
+            exit 1
+          else
+            echo "✅ All apps directories are mentioned in README.md"
+          fi
