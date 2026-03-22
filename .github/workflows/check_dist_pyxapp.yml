@@ -1,0 +1,66 @@
+name: Check dist pyxapp files in apps directories
+
+on:
+  pull_request:
+    paths:
+      - 'apps/**'
+
+jobs:
+  check-dist-pyxapp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check dist pyxapp files in apps directories
+        run: |
+          # appsディレクトリ配下のディレクトリ名を取得
+          apps_dirs=$(find apps -maxdepth 1 -type d ! -name 'apps' | sed 's|^apps/||' | sort)
+          
+          echo "Found apps directories:"
+          echo "$apps_dirs"
+          echo ""
+          
+          missing_files=()
+          
+          for dir in $apps_dirs; do
+            echo "Checking $dir..."
+            has_pyxapp=false
+            has_html=false
+            
+            if [ -d "apps/$dir/dist" ]; then
+              # *_v[0-9]+_[0-9]+.pyxapp のパターンをチェック
+              pyxapp_files=$(ls apps/$dir/dist/*_v[0-9]*_[0-9]*.pyxapp 2>/dev/null || true)
+              if [ -n "$pyxapp_files" ]; then
+                has_pyxapp=true
+                echo "  ✅ Found pyxapp file(s) in apps/$dir/dist: $pyxapp_files"
+              fi
+            fi
+            
+            if [ "$has_pyxapp" = false ] && [ -d "docs/$dir" ]; then
+              # docs/$dir/$dir_v[0-9]+_[0-9]+.html のパターンをチェック
+              html_files=$(ls docs/$dir/${dir}_v[0-9]*_[0-9]*.html 2>/dev/null || true)
+              if [ -n "$html_files" ]; then
+                has_html=true
+                echo "  ✅ Found HTML file(s) in docs/$dir: $html_files"
+              fi
+            fi
+            
+            if [ "$has_pyxapp" = false ] && [ "$has_html" = false ]; then
+              echo "  ❌ No pyxapp file in dist/ and no HTML file in docs/$dir"
+              missing_files+=("$dir")
+            fi
+          done
+          
+          # 結果を出力
+          if [ ${#missing_files[@]} -gt 0 ]; then
+            echo ""
+            echo "❌ Error: The following directories are missing required pyxapp files:"
+            for dir in "${missing_files[@]}"; do
+              echo "  - $dir"
+            done
+            exit 1
+          else
+            echo ""
+            echo "✅ All apps directories have the required pyxapp files in dist/"
+          fi
