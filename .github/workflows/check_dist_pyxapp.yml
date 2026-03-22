@@ -1,0 +1,55 @@
+name: Check dist pyxapp files in apps directories
+
+on:
+  pull_request:
+    paths:
+      - 'apps/**'
+
+jobs:
+  check-dist-pyxapp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check dist pyxapp files in apps directories
+        run: |
+          # appsディレクトリ配下のディレクトリ名を取得
+          apps_dirs=$(find apps -maxdepth 1 -type d ! -name 'apps' | sed 's|^apps/||' | sort)
+          
+          echo "Found apps directories:"
+          echo "$apps_dirs"
+          echo ""
+          
+          missing_files=()
+          
+          for dir in $apps_dirs; do
+            echo "Checking $dir..."
+            if [ ! -d "apps/$dir/dist" ]; then
+              echo "  ❌ dist directory not found in apps/$dir"
+              missing_files+=("$dir (dist directory missing)")
+              continue
+            fi
+            
+            # *_v[0-9]+_[0-9]+.pyxapp のパターンをチェック
+            pyxapp_files=$(ls apps/$dir/dist/*_v[0-9]*_[0-9]*.pyxapp 2>/dev/null || true)
+            if [ -z "$pyxapp_files" ]; then
+              echo "  ❌ No *_v[0-9]+_[0-9]+.pyxapp file found in apps/$dir/dist"
+              missing_files+=("$dir")
+            else
+              echo "  ✅ Found pyxapp file(s) in apps/$dir/dist: $pyxapp_files"
+            fi
+          done
+          
+          # 結果を出力
+          if [ ${#missing_files[@]} -gt 0 ]; then
+            echo ""
+            echo "❌ Error: The following directories are missing required pyxapp files:"
+            for dir in "${missing_files[@]}"; do
+              echo "  - $dir"
+            done
+            exit 1
+          else
+            echo ""
+            echo "✅ All apps directories have the required pyxapp files in dist/"
+          fi
