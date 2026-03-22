@@ -1,0 +1,49 @@
+name: Test apps
+
+on:
+  pull_request:
+    paths:
+      - 'apps/**'
+
+jobs:
+  test-apps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pyxel
+
+      - name: Get changed apps directories
+        id: changed-apps
+        run: |
+          # Get changed files in apps/
+          changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} -- apps/)
+          
+          # Extract unique directories under apps/
+          changed_dirs=$(echo "$changed_files" | grep '^apps/' | cut -d'/' -f2 | sort | uniq)
+          
+          # Output as space-separated list
+          echo "changed_dirs=$changed_dirs" >> $GITHUB_OUTPUT
+
+      - name: Run tests for changed apps
+        run: |
+          for dir in ${{ steps.changed-apps.outputs.changed_dirs }}; do
+            if [ -d "apps/$dir/test" ] && [ -f "apps/$dir/test/run_tests.py" ]; then
+              echo "Running tests for $dir"
+              cd "apps/$dir/test"
+              python run_tests.py || exit 1
+              cd ../../..
+            else
+              echo "No test directory or run_tests.py found for $dir"
+            fi
+          done
