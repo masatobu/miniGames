@@ -271,6 +271,20 @@ class TestCitySpecialGrid(unittest.TestCase):
             restored.update()
         self.assertEqual(funds_before + restored.population, restored.funds)
 
+    def test_apply_growth_special_does_not_increase_rest_growth(self):
+        """special=True のとき _rest_growth が増加しないこと"""
+        cases = [
+            (0, "amount=0"),
+            (5, "amount=5"),
+            (100, "amount=100"),
+        ]
+        for amount, label in cases:
+            with self.subTest(label):
+                city = City()
+                rest_before = city._rest_growth  # pylint: disable=W0212
+                city.apply_growth(amount, special=True)
+                self.assertEqual(rest_before, city._rest_growth)  # pylint: disable=W0212
+
 
 class TestCityExportImport(unittest.TestCase):
     def test_to_dict_values(self):

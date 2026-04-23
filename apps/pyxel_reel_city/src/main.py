@@ -1,4 +1,4 @@
-# title: pyxel template
+# title: pyxel reel city
 # author: masatobu
 
 from abc import ABC, abstractmethod
@@ -180,6 +180,12 @@ class GameCore:
     }
     POPULATION_X = 2
     POPULATION_Y = 2
+    POPULATION_ICON_U = 0
+    POPULATION_ICON_V = 32
+    FUNDS_ICON_U = 0
+    FUNDS_ICON_V = 24
+    ICON_SIZE = 8
+    ICON_GAP = 1
     POPUP_W = 120
     POPUP_H = 48
     POPUP_X = (SCREEN_W - POPUP_W) // 2
@@ -359,25 +365,35 @@ class GameCore:
 
     def _draw_funds(self):
         text = str(self._city.funds)
-        fw = self.FUNDS_FRAME_DIGITS * self.CHAR_W + self.FUNDS_PAD_X * 2
+        fw = self.ICON_SIZE + self.ICON_GAP + self.FUNDS_FRAME_DIGITS * self.CHAR_W + self.FUNDS_PAD_X * 2
         fh = self.CHAR_H + self.FUNDS_PAD_Y * 2
         fx = self.SCREEN_W - fw - self.FUNDS_MARGIN
         fy = self.FUNDS_Y
-        tx = fx + self.FUNDS_PAD_X
+        tx = fx + self.ICON_SIZE + self.ICON_GAP + self.FUNDS_PAD_X
         ty = fy + self.FUNDS_PAD_Y
         self._view.draw_rect(fx, fy, fw, fh, self.FUNDS_FRAME_COL)
+        self._view.draw_blt(
+            fx + 2, fy + 2, 0,
+            self.FUNDS_ICON_U, self.FUNDS_ICON_V,
+            self.ICON_SIZE, self.ICON_SIZE, 0,
+        )
         self._view.draw_rectb(fx, fy, fw, fh, self.FUNDS_FRAME_BORDER_COL)
         self._view.draw_text(tx, ty, text, self.FUNDS_TEXT_COL)
 
     def _draw_population(self):
         text = str(self._city.population)
-        fw = self.FUNDS_FRAME_DIGITS * self.CHAR_W + self.FUNDS_PAD_X * 2
+        fw = self.ICON_SIZE + self.ICON_GAP + self.FUNDS_FRAME_DIGITS * self.CHAR_W + self.FUNDS_PAD_X * 2
         fh = self.CHAR_H + self.FUNDS_PAD_Y * 2
         fx = self.POPULATION_X
         fy = self.POPULATION_Y
-        tx = fx + self.FUNDS_PAD_X
+        tx = fx + self.ICON_SIZE + self.ICON_GAP + self.FUNDS_PAD_X
         ty = fy + self.FUNDS_PAD_Y
         self._view.draw_rect(fx, fy, fw, fh, self.FUNDS_FRAME_COL)
+        self._view.draw_blt(
+            fx + 2, fy + 2, 0,
+            self.POPULATION_ICON_U, self.POPULATION_ICON_V,
+            self.ICON_SIZE, self.ICON_SIZE, 0,
+        )
         self._view.draw_rectb(fx, fy, fw, fh, self.FUNDS_FRAME_BORDER_COL)
         self._view.draw_text(tx, ty, text, self.FUNDS_TEXT_COL)
 
@@ -418,7 +434,7 @@ class App:
         import pyxel  # pylint: disable=W0621, C0415
 
         # 縦: (GRID_H - VERTICAL_OFFSET) * (ROW_NUM - 1) + GRID_H = 8 * 35 + 15 = 295
-        pyxel.init(GameCore.SCREEN_W, GameCore.SCREEN_H, title="pyxel template")
+        pyxel.init(GameCore.SCREEN_W, GameCore.SCREEN_H, title="pyxel reel city")
         pyxel.mouse(True)
         pyxel.load("images.pyxres")
         self._core = GameCore()

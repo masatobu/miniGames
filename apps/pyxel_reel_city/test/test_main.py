@@ -31,30 +31,36 @@ def make_reel_draw_calls(text="0", frame_col=7, bg_col=None):
 def make_funds_draw_calls(text="0"):
     pad_x = GameCore.FUNDS_PAD_X
     pad_y = GameCore.FUNDS_PAD_Y
-    fw = GameCore.FUNDS_FRAME_DIGITS * GameCore.CHAR_W + pad_x * 2
+    fw = GameCore.ICON_SIZE + GameCore.ICON_GAP + GameCore.FUNDS_FRAME_DIGITS * GameCore.CHAR_W + pad_x * 2
     fh = GameCore.CHAR_H + pad_y * 2
     fx = GameCore.SCREEN_W - fw - GameCore.FUNDS_MARGIN
     fy = GameCore.FUNDS_Y
-    tx = fx + pad_x
+    icon_x = fx + 2
+    icon_y = fy + 2
+    tx = fx + GameCore.ICON_SIZE + GameCore.ICON_GAP + pad_x
     ty = fy + pad_y
     return [
         ("draw_rect", fx, fy, fw, fh, GameCore.FUNDS_FRAME_COL),
+        ("draw_blt", icon_x, icon_y, 0, GameCore.FUNDS_ICON_U, GameCore.FUNDS_ICON_V, GameCore.ICON_SIZE, GameCore.ICON_SIZE, 0),
         ("draw_rectb", fx, fy, fw, fh, GameCore.FUNDS_FRAME_BORDER_COL),
         ("draw_text", tx, ty, text),
     ]
 
 
 def make_population_draw_calls(text="1"):
+    icon_x = GameCore.POPULATION_X + 2
+    icon_y = GameCore.POPULATION_Y + 2
     pad_x = GameCore.FUNDS_PAD_X
     pad_y = GameCore.FUNDS_PAD_Y
-    fw = GameCore.FUNDS_FRAME_DIGITS * GameCore.CHAR_W + pad_x * 2
+    fw = GameCore.ICON_SIZE + GameCore.ICON_GAP + GameCore.FUNDS_FRAME_DIGITS * GameCore.CHAR_W + pad_x * 2
     fh = GameCore.CHAR_H + pad_y * 2
     fx = GameCore.POPULATION_X
     fy = GameCore.POPULATION_Y
-    tx = fx + pad_x
+    tx = fx + GameCore.ICON_SIZE + GameCore.ICON_GAP + pad_x
     ty = fy + pad_y
     return [
         ("draw_rect", fx, fy, fw, fh, GameCore.FUNDS_FRAME_COL),
+        ("draw_blt", icon_x, icon_y, 0, GameCore.POPULATION_ICON_U, GameCore.POPULATION_ICON_V, GameCore.ICON_SIZE, GameCore.ICON_SIZE, 0),
         ("draw_rectb", fx, fy, fw, fh, GameCore.FUNDS_FRAME_BORDER_COL),
         ("draw_text", tx, ty, text),
     ]
