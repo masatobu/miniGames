@@ -10,3 +10,4 @@ Click the links below to play the game.
 - [pyxel combo card](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.apps.pyxel_combo_card.dist.pyxel_combo_card_v1_0 "move to pyxel web launcher")
 - [pyxel raise units](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.apps.pyxel_raise_units.dist.pyxel_raise_units_v1_0 "move to pyxel web launcher")
 - [pyxel fishing](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.apps.pyxel_fishing.dist.pyxel_fishing_v1_0 "move to pyxel web launcher")
+- [pyxel reel city](https://masatobu.github.io/miniGames/pyxel_reel_city/pyxel_reel_city_v1_0.html "move to github.io")
