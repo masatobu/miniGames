@@ -152,16 +152,19 @@ class City:
             self._is_game_over = True
             return
 
+        if special:
+            min_amount = min(candidate_map.keys())
+            x, y = random.choice(candidate_map[min_amount])
+            self._population -= self._grid_table[x][y].level
+            self._grid_table[x][y].make_special()
+            return
+
         self._rest_growth += amount
         while candidate_map:
             min_amount = min(candidate_map.keys())
-            if not special and self._rest_growth < min_amount:
+            if self._rest_growth < min_amount:
                 break
             x, y = random.choice(candidate_map[min_amount])
-            if special:
-                self._population -= self._grid_table[x][y].level
-                self._grid_table[x][y].make_special()
-                return
             self._rest_growth -= min_amount
             self._grid_table[x][y].level_up()
             self._population += 1
