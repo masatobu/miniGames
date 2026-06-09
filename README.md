@@ -12,3 +12,4 @@ Click the links below to play the game.
 - [pyxel fishing](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.apps.pyxel_fishing.dist.pyxel_fishing_v1_0 "move to pyxel web launcher")
 - [pyxel reel city](https://masatobu.github.io/miniGames/pyxel_reel_city/pyxel_reel_city_v1_1.html "move to github.io")
 - [pyxel connect city](https://masatobu.github.io/miniGames/pyxel_connect_city/pyxel_connect_city_v1_0.html "move to github.io")
+- [pyxel break blocks](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.apps.pyxel_break_blocks.dist.pyxel_break_blocks_v1_0 "move to pyxel web launcher")
