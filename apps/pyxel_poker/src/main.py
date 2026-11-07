@@ -218,6 +218,7 @@ class App:
 
         pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, title="pyxel poker")
         pyxel.load("icon.pyxres")
+        pyxel.mouse(True)
         self._core = GameCore()
         pyxel.run(self.update, self.draw)
 
