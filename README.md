@@ -18,3 +18,4 @@ Click the links below to play the game.
 - [pyxel shop grow](https://masatobu.github.io/miniGames/pyxel_shop_grow/pyxel_shop_grow_v1_0.html "move to github.io")
 - [pyxel maze guide](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.apps.pyxel_maze_guide.dist.pyxel_maze_guide_v1_0 "move to pyxel web launcher")
 - [pyxel tycoon](https://masatobu.github.io/miniGames/pyxel_tycoon/pyxel_tycoon_v1_0.html "move to github.io")
+- [pyxel poker](https://kitao.github.io/pyxel/wasm/launcher/?play=masatobu.miniGames.apps.pyxel_poker.dist.pyxel_poker_v1_0 "move to pyxel web launcher")
